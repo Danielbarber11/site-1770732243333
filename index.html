@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Ultra - Master Ecosystem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Identity Services SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@200;400;600;700&display=swap');
+        :root { --gemini-bg: #131314; --gemini-card: #1e1f20; }
+        body { font-family: 'Assistant', sans-serif; background-color: var(--gemini-bg); color: #e3e3e3; scroll-behavior: smooth; }
+        .gemini-gradient { background: linear-gradient(70deg, #4285f4, #9b72cb, #d96570); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .glass-nav { background: rgba(19, 19, 20, 0.95); backdrop-filter: blur(20px); border-bottom: 1px solid #333; }
+        
+        .connection-pill { 
+            border-radius: 999px; 
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+            cursor: pointer; 
+            border: 1px solid #333; 
+            background: #1e1f20;
+            padding: 12px 24px;
+        }
+        .connection-pill:hover { 
+            background: #2a2b2d; 
+            border-color: #555; 
+            transform: scale(1.02);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        .connection-pill.active { border-color: #4285f4; background: rgba(66, 133, 244, 0.1); }
+        
+        .shimmer { background: linear-gradient(90deg, #1e1f20, #333, #1e1f20); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        
+        .tab-active { color: white; border-bottom: 2px solid #4285f4; }
+        .user-message { background: #2b2c2f; padding: 12px 20px; border-radius: 20px 20px 4px 20px; max-width: 80%; }
+        .ai-icon { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(45deg, #4285f4, #9b72cb); }
+
+        #login-overlay { background: #131314; z-index: 9999; }
+    </style>
+</head>
+<body class="overflow-hidden h-screen flex flex-col text-right">
+
+    <!-- מסך כניסה מאובטח -->
+    <div id="login-overlay" class="fixed inset-0 flex items-center justify-center p-6 transition-opacity duration-500">
+        <div class="max-w-md w-full text-center space-y-8">
+            <div class="inline-block p-4 bg-white/5 rounded-3xl mb-4">
+                <i class="fab fa-google text-6xl text-white"></i>
+            </div>
+            <h1 class="text-5xl font-bold gemini-gradient">Gemini Ultra</h1>
+            <p class="text-gray-400">התחבר לחשבון ה-Google שלך כדי להפעיל את כל החיבורים והאוטומציות.</p>
+            
+            <div class="flex flex-col items-center gap-4">
+                <!-- כפתור כניסה אמיתי של גוגל -->
+                <div id="g_id_onload"
+                     data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+                     data-context="signin"
+                     data-ux_mode="popup"
+                     data-callback="handleCredentialResponse"
+                     data-auto_prompt="false">
+                </div>
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-shape="pill"
+                     data-theme="outline"
+                     data-text="signin_with"
+                     data-size="large"
+                     data-logo_alignment="left">
+                </div>
+                
+                <button onclick="bypassLogin()" class="text-xs text-gray-600 hover:text-gray-400 underline mt-4">המשך ללא כניסה (מצב הדגמה)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="glass-nav px-6 py-4 flex justify-between items-center z-50">
+        <div class="flex items-center gap-6">
+            <span class="text-2xl font-bold gemini-gradient">Gemini Ultra Master</span>
+            <nav class="hidden md:flex gap-6">
+                <button onclick="showPage('chat')" id="btn-chat" class="tab-active py-1">צ'אט</button>
+                <button onclick="showPage('connections')" id="btn-connections" class="text-gray-400 hover:text-white py-1">חיבורים</button>
+                <button onclick="showPage('manage')" id="btn-manage" class="text-gray-400 hover:text-white py-1">ניהול</button>
+            </nav>
+        </div>
+        <div class="flex items-center gap-4">
+            <div id="auth-status" class="hidden sm:block text-[10px] bg-green-500/20 text-green-400 px-3 py-1 rounded-full border border-green-500/30 font-bold uppercase tracking-wider">
+                CONNECTED
+            </div>
+            <div id="user-profile-img" class="w-10 h-10 rounded-full bg-gray-700 border border-gray-600 flex items-center justify-center font-bold overflow-hidden">
+                <i class="fas fa-user"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="mainContainer" class="flex-grow overflow-y-auto relative bg-[#131314]">
+        <!-- עמוד צ'אט -->
+        <section id="page-chat" class="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-40">
+            <div class="py-12 text-center">
+                <h1 class="text-4xl md:text-6xl font-bold mb-4 gemini-gradient">איך אוכל לעזור היום?</h1>
+                <p class="text-gray-400">המערכת מוכנה ליצירת תוכן מולטימדיה וניהול שירותי Google.</p>
+            </div>
+            <div id="chatHistory" class="space-y-6"></div>
+        </section>
+
+        <!-- עמוד חיבורים -->
+        <section id="page-connections" class="hidden max-w-6xl mx-auto p-8 pb-32">
+            <div class="mb-12">
+                <h2 class="text-4xl font-bold mb-2">מרכז החיבורים</h2>
+                <p class="text-gray-500">הקש על אפליקציה לניהול הרשאות ופעולות AI</p>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12" id="conn-grid">
+                <!-- יצירה דינמית של כפתורי החיבור -->
+            </div>
+            <div id="connectionDetail" class="bg-[#1e1f20] rounded-3xl p-8 border border-gray-800 min-h-[200px] flex items-center justify-center text-gray-500 italic">
+                לחץ על אחד החיבורים כדי לראות מה ה-AI יכול לעשות איתו
+            </div>
+        </section>
+
+        <!-- עמוד ניהול -->
+        <section id="page-manage" class="hidden max-w-4xl mx-auto p-8">
+            <h2 class="text-3xl font-bold mb-8 text-white">הגדרות מתקדמות</h2>
+            <div class="space-y-4">
+                <div class="bg-[#1e1f20] p-6 rounded-2xl border border-gray-800 flex items-center justify-between">
+                    <div>
+                        <p class="font-bold">אוטומציית העלאה</p>
+                        <p class="text-xs text-gray-500">שמור אוטומטית תוצרים ב-Drive וב-Photos</p>
+                    </div>
+                    <input type="checkbox" checked class="w-6 h-6 rounded border-gray-800 bg-gray-900 text-blue-600 focus:ring-blue-500">
+                </div>
+                <button onclick="location.reload()" class="w-full py-4 bg-red-600/10 text-red-500 rounded-2xl border border-red-500/20 font-bold hover:bg-red-600 hover:text-white transition-all">התנתק מחשבון Google</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Floating UI Input -->
+    <div class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#131314] via-[#131314] to-transparent">
+        <div class="max-w-4xl mx-auto">
+            <div class="bg-[#1e1f20] border border-gray-700 rounded-3xl p-2 flex items-center shadow-2xl focus-within:border-blue-500 transition-all">
+                <button class="p-3 text-gray-400 hover:text-white"><i class="fas fa-paperclip"></i></button>
+                <textarea id="mainInput" rows="1" placeholder="בקש ליצור סרטון, תמונה, או לנהל את הבית..." class="bg-transparent border-none focus:ring-0 w-full text-white py-3 px-4 resize-none text-right" oninput="autoResize(this)"></textarea>
+                <button id="sendAction" class="p-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-500 transition-all ml-2">
+                    <i class="fas fa-bolt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Media Result Modal -->
+    <div id="mediaModal" class="hidden fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4">
+        <div class="bg-[#1e1f20] rounded-3xl p-8 max-w-2xl w-full border border-gray-800 text-center relative">
+            <button onclick="closeModal()" class="absolute top-4 left-4 text-gray-500 hover:text-white"><i class="fas fa-times"></i></button>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = ""; // Gemini API Key
+        let currentUser = null;
+
+        // נתוני חיבורים
+        const connections = [
+            { id: 'drive', name: 'Drive', icon: 'fab fa-google-drive', color: 'text-green-500', desc: 'שמירה וניהול מסמכים וקבצי AI.' },
+            { id: 'youtube', name: 'YouTube', icon: 'fab fa-youtube', color: 'text-red-500', desc: 'העלאת סרטונים וניהול ערוץ אוטונומי.' },
+            { id: 'photos', name: 'Photos', icon: 'fas fa-images', color: 'text-yellow-500', desc: 'גישה לספריית התמונות ושמירת תוצרי Pro.' },
+            { id: 'maps', name: 'Maps', icon: 'fas fa-map-marked-alt', color: 'text-blue-400', desc: 'תכנון מסלולים ומידע גאוגרפי בזמן אמת.' },
+            { id: 'home', name: 'Home', icon: 'fas fa-home', color: 'text-orange-400', desc: 'שליטה במכשירי חשמל ובית חכם.' },
+            { id: 'meet', name: 'Meet', icon: 'fas fa-video', color: 'text-blue-500', desc: 'תזמון וסיכום שיחות וידאו.' },
+            { id: 'sites', name: 'Sites', icon: 'fas fa-globe', color: 'text-purple-400', desc: 'בניית דפי נחיתה ופרסומם ברשת.' },
+            { id: 'slides', name: 'Slides', icon: 'fas fa-file-powerpoint', color: 'text-orange-600', desc: 'יצירת מצגות עסקיות עם גרפיקת AI.' }
+        ];
+
+        // טיפול בכניסה עם גוגל
+        function handleCredentialResponse(response) {
+            console.log("Encoded JWT ID token: " + response.credential);
+            // כאן אפשר לפענח את ה-JWT כדי לקבל שם ותמונה
+            bypassLogin(); // מעביר למערכת
+            document.getElementById('auth-status').classList.remove('hidden');
+        }
+
+        function bypassLogin() {
+            document.getElementById('login-overlay').style.opacity = '0';
+            setTimeout(() => document.getElementById('login-overlay').classList.add('hidden'), 500);
+            renderConnections();
+        }
+
+        function renderConnections() {
+            const grid = document.getElementById('conn-grid');
+            grid.innerHTML = connections.map(c => `
+                <div class="connection-pill flex items-center gap-3" onclick="selectConnection('${c.id}')">
+                    <i class="${c.icon} ${c.color}"></i>
+                    <span class="font-semibold">${c.name}</span>
+                </div>
+            `).join('');
+        }
+
+        function selectConnection(id) {
+            const conn = connections.find(c => c.id === id);
+            const panel = document.getElementById('connectionDetail');
+            document.querySelectorAll('.connection-pill').forEach(p => p.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            
+            panel.innerHTML = `
+                <div class="text-right w-full animate-fade-in">
+                    <h3 class="text-2xl font-bold mb-2 ${conn.color}">${conn.name}</h3>
+                    <p class="text-gray-300 leading-relaxed">${conn.desc}</p>
+                    <div class="mt-4 flex gap-2">
+                        <span class="bg-white/5 px-3 py-1 rounded-full text-xs">חיבור פעיל</span>
+                        <span class="bg-white/5 px-3 py-1 rounded-full text-xs">הרשאות Ultra</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('mainInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            addMsg('user', text);
+            input.value = '';
+            autoResize(input);
+
+            const loaderId = addLoading();
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: text }] }],
+                        systemInstruction: { parts: [{ text: "אתה Gemini Ultra Master. ענה בעברית. אם המשתמש מבקש ליצור מדיה, אשר זאת ותאר את התוצר שתכין." }] }
+                    })
+                });
+
+                const data = await response.json();
+                const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "סליחה, אירעה שגיאה בעיבוד.";
+                
+                removeLoading(loaderId);
+                addMsg('ai', aiResponse);
+
+                if (["צור", "תמונה", "סרטון", "מצגת"].some(k => text.includes(k))) {
+                    setTimeout(() => showMediaModal(text), 1000);
+                }
+            } catch (e) {
+                removeLoading(loaderId);
+                addMsg('ai', "שגיאת תקשורת. וודא שחיברת API KEY תקין.");
+            }
+        }
+
+        function showMediaModal(prompt) {
+            const modal = document.getElementById('mediaModal');
+            const content = document.getElementById('modalContent');
+            modal.classList.remove('hidden');
+
+            content.innerHTML = `
+                <div class="space-y-6">
+                    <div class="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-magic text-3xl text-blue-400"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold text-white">התוצר מוכן!</h2>
+                    <p class="text-gray-400 italic">"${prompt}"</p>
+                    <div class="aspect-video bg-black/40 rounded-2xl flex items-center justify-center border border-gray-800">
+                        <span class="text-xs text-gray-600">PREVIEW RENDERED IN ULTRA MODE</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button class="bg-blue-600 py-4 rounded-2xl font-bold hover:bg-blue-500 transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-download"></i> הורדה
+                        </button>
+                        <button class="bg-gray-700 py-4 rounded-2xl font-bold hover:bg-gray-600 transition-all flex items-center justify-center gap-2">
+                            <i class="fas fa-cloud-upload-alt"></i> העלאה ל-Google
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function addMsg(role, text) {
+            const history = document.getElementById('chatHistory');
+            const div = document.createElement('div');
+            div.className = role === 'user' ? 'flex justify-end' : 'flex gap-4 items-start';
+            div.innerHTML = role === 'user' 
+                ? `<div class="user-message">${text}</div>`
+                : `<div class="ai-icon shrink-0 shadow-lg"></div><div class="max-w-[85%] pt-1 text-gray-200">${text.replace(/\n/g, '<br>')}</div>`;
+            history.appendChild(div);
+            document.getElementById('mainContainer').scrollTo(0, history.scrollHeight);
+        }
+
+        function addLoading() {
+            const id = 'L' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'flex gap-4 items-start opacity-50';
+            div.innerHTML = `<div class="ai-icon shimmer"></div><div class="h-4 w-40 shimmer rounded mt-3"></div>`;
+            document.getElementById('chatHistory').appendChild(div);
+            return id;
+        }
+
+        function removeLoading(id) { document.getElementById(id)?.remove(); }
+        function closeModal() { document.getElementById('mediaModal').classList.add('hidden'); }
+        function showPage(p) {
+            ['chat', 'connections', 'manage'].forEach(id => document.getElementById(`page-${id}`).classList.add('hidden'));
+            document.getElementById(`page-${p}`).classList.remove('hidden');
+            ['chat', 'connections', 'manage'].forEach(id => document.getElementById(`btn-${id}`).className = 'text-gray-400 hover:text-white py-1');
+            document.getElementById(`btn-${p}`).className = 'tab-active py-1';
+        }
+        function autoResize(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+
+        document.getElementById('sendAction').onclick = sendMessage;
+        document.getElementById('mainInput').onkeydown = e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+    </script>
+</body>
+</html>
